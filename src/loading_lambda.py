@@ -7,13 +7,13 @@ import os
 
 def lambda_handler(event, context):
     # Snowflake connection parameters
-    account = 'epyxlwf-bz70650'
-    user = 'imran3'
-    password = 'Hsdaujueacha73597529247942ijvroirjvoi_@'
+    account = 'xxxxxxxxxx'
+    user = 'xxxxx'
+    password = 'xxxxxxxxx'
     warehouse = 'COMPUTE_WH'
     database = 'DATA'
     schema = 'PUBLIC'
-    snowflake_table = 'PLAYER_INFO_TRANSFER'
+    snowflake_table = 'PLAYER_INFO_TRANSFER1'
 
     # S3 connection parameters
     s3_bucket = 'fifa-clean-bucket'
@@ -29,11 +29,11 @@ def lambda_handler(event, context):
         schema=schema
     )
 
-    # Create table if not exists
+    # Create table for player information
     cursor = conn.cursor()
     cursor.execute(f'''
         CREATE TABLE IF NOT EXISTS {snowflake_table} (
-            Name VARCHAR,
+            Name VARCHAR PRIMARY KEY,
             Nationality VARCHAR,
             Age INT,
             Rating INT,
@@ -42,13 +42,31 @@ def lambda_handler(event, context):
             Foot VARCHAR,
             Position VARCHAR,
             "Value(€)" FLOAT,
-            "Weekly Wage(€)" FLOAT,
+            "Weekly Wage(€)" FLOAT
+        )
+    ''')
+
+    # Create table for player statistics
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS PLAYER_STATISTICS (
+            Player_Stat_Id INT IDENTITY PRIMARY KEY,
             PAC INT,
             SHO INT,
             PAS INT,
             DRI INT,
             DEF INT,
             PHY INT
+        )
+    ''')
+
+    # Create table to associate player information with statistics
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS PLAYER_INFO_STATS (
+            PLAYER_INFO_STATS INT IDENTITY PRIMARY KEY, 
+            Name VARCHAR,
+            Player_Stat_Id INT,
+            FOREIGN KEY (Name) REFERENCES PLAYER_INFO_TRANSFER (Name),
+            FOREIGN KEY (Player_Stat_Id) REFERENCES PLAYER_STATISTICS (Player_Stat_Id)
         )
     ''')
 
@@ -59,15 +77,37 @@ def lambda_handler(event, context):
     local_file = '/tmp/data.csv'
     s3_client.download_file(s3_bucket, s3_key, local_file)
 
-    # Load data into Snowflake
+    # Load data into Snowflake - Player Information table
+    with open(local_file, 'r') as file:
+        csv_reader = csv.reader(file)
+        next(csv_reader)  # Skip header row
+        for row in csv_reader:
+            cursor.execute(f'''
+                INSERT INTO {snowflake_table} (Name, Nationality, Age, Rating, Club, "Height(cm)", Foot, Position, "Value(€)", "Weekly Wage(€)")
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', row[:10])  # Ensure only the first 10 elements are used
+
+    # Load data into Snowflake - Player Statistics table
+    with open(local_file, 'r') as file:
+        csv_reader = csv.reader(file)
+        next(csv_reader)  # Skip header row
+        for row in csv_reader:
+            cursor.execute('''
+                INSERT INTO PLAYER_STATISTICS (PAC, SHO, PAS, DRI, DEF, PHY)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', row[10:16])  # Ensure only elements 10 to 15 are used
+
+    # Load data into Snowflake - Player Information & Statistics association table
+    cursor.execute("SELECT MAX(Player_Stat_Id) FROM PLAYER_STATISTICS")
+    max_stat_id = cursor.fetchone()[0] or 0  # Handle case when table is empty
     with open(local_file, 'r') as file:
         csv_reader = csv.reader(file)
         next(csv_reader)  # Skip header row
         for row in csv_reader:
             cursor.execute("""
-                INSERT INTO {table} (Name, Nationality, Age, Rating, Club, "Height(cm)", Foot, Position, "Value(€)", "Weekly Wage(€)", PAC, SHO, PAS, DRI, DEF, PHY)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """.format(table=snowflake_table), row)
+                INSERT INTO PLAYER_INFO_STATS (Name, Player_Stat_Id)
+                VALUES (%s, %s)
+            """, (row[0], max_stat_id))
 
     cursor.close()
     conn.close()
