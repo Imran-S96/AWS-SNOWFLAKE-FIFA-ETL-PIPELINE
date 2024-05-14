@@ -24,8 +24,8 @@ This project serves as a platform for me to demonstrate my proficiency in levera
 6. Create Intergration Object. 
 
 ## Future Implementation 
-SQS 
-SNOWPIPE
+
+For future implementations of my ETL pipeline on AWS and Snowflake, I'm excited about integrating SQS (Simple Queue Service) and Snowpipe into the architecture. With SQS, I can efficiently queue up data processing tasks, enabling scalable and asynchronous processing. This decoupling of components not only enhances scalability but also boosts reliability by redundantly storing messages across multiple availability zones. On the Snowflake side, incorporating Snowpipe streamlines continuous data loading from cloud storage into Snowflake tables, ensuring real-time or near-real-time updates without manual intervention. This automation not only reduces complexity and cost but also maintains data freshness, ultimately enhancing the overall performance and efficiency of my ETL pipeline.
 
 ## Architecture 
 ![Fifa Snowflake Pipeline.jpg](<Fifa Snowflake Pipeline.jpg>)
